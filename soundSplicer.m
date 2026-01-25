@@ -48,13 +48,29 @@ endIndex = sliceSamples;
 samplesConsumed = 0;
 i = 1;
 
+fadeTime = 0.001;
+fadeSamples = floor(fadeTime * fs);
+fadeVal = 0;
+fadeIncr = 1/(fadeSamples);
+
 % loop through input file and put into slices
 while samplesConsumed < length(inFile)
 
     localSlice = inFile(startIndex:endIndex);
 
-    %localSlicePadded = padarray(localSlice, fs*1.0);
+    % apply a fade in and out to the captured slice
+    for k=1:fadeSamples
+        localSlice(k) = localSlice(k) * fadeVal;
+        localSlice(end-fadeSamples+k) = localSlice(end-fadeSamples+k)*(1-fadeVal);
+        fadeVal = fadeVal + fadeIncr;
 
+
+    end
+
+    fadeVal = 0;
+
+   
+    % place the slice into our data array
     arrayOfSlices(:, i) = localSlice;
 
     startIndex = startIndex + sliceSamples;

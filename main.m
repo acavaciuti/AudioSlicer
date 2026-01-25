@@ -4,8 +4,8 @@ close all
 [inFile, fs] = audioread("Cornish.wav");
 inFileL = inFile(:, 1);
 
-BPM = 130;
-sliceSize = 0;
+BPM = 120;
+sliceSize = 3;
 [output] = soundSplicer(inFileL, fs, BPM, sliceSize);
 
 
