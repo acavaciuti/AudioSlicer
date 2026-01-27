@@ -1,4 +1,4 @@
-function [outFile] = soundSplicer(inFile, fs, BPM, sliceSize)
+function [outFile] = audioSlicer(inFile, fs, BPM, sliceSize)
 % Inputs:
 %   inFile: Source audio signal to be processed
 %   fs: inFile sample rate
@@ -14,6 +14,8 @@ function [outFile] = soundSplicer(inFile, fs, BPM, sliceSize)
         % 7 = 4 bars
 % Outputs:
 %   outFile: Spliced audio signal
+
+% TODO: Process mono or stereo input file.
 
 switch sliceSize
     case 0 % 1/32 note
@@ -63,24 +65,23 @@ while samplesConsumed < length(inFile)
         localSlice(k) = localSlice(k) * fadeVal;
         localSlice(end-fadeSamples+k) = localSlice(end-fadeSamples+k)*(1-fadeVal);
         fadeVal = fadeVal + fadeIncr;
-
-
     end
-
+    % fade is done for this slice, reset fade val
     fadeVal = 0;
 
-   
     % place the slice into our data array
     arrayOfSlices(:, i) = localSlice;
 
+    % increment positional values
     startIndex = startIndex + sliceSamples;
     endIndex = endIndex + sliceSamples;
+    samplesConsumed = samplesConsumed + sliceSamples;
+    i = i + 1;
+
     % when we have data left that is not a full slice just end 
     if (endIndex >= length(inFile))
         break
-    end
-    samplesConsumed = samplesConsumed + sliceSamples;
-    i = i + 1;
+    end    
 end
 
 % create numSlices random numbers with no repeats
@@ -88,16 +89,9 @@ randNums = randperm(numSlices, numSlices);
 
 i = 1;
 for k=1:length(randNums)
-    
-    % use the random numbers to pick slices frmo our data
+    % use the random numbers to pick slices from our data
     outFile(i:i+sliceSamples-1) = arrayOfSlices(:, randNums(k));
+    % increment our position in the output file
     i = i + sliceSamples;
-
 end
-
-
-
-
-
-
 end
