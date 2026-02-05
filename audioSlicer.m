@@ -14,8 +14,23 @@ function [outFile] = audioSlicer(inFile, fs, BPM, sliceSize)
         % 7 = 4 bars
 % Outputs:
 %   outFile: Spliced audio signal
+tic
 
-% TODO: Process mono or stereo input file.
+mono = 0;
+stereo = 0;
+
+if (size(inFile, 2) == 1)
+    mono = 1;
+    stereo = 0;
+
+elseif (size(inFile, 2) == 2)
+    mono = 0;
+    stereo = 1;
+else
+    mono = 0;
+    stereo = 0;
+end
+
 
 switch sliceSize
     case 0 % 1/32 note
@@ -38,60 +53,137 @@ switch sliceSize
         sliceSamples = fs * (60 / BPM);
 end
 
-sliceSamples = floor(sliceSamples);
+sliceSamplesInt = round(sliceSamples);
 
-
-outFile = zeros(length(inFile),1);
-numSlices = floor(length(inFile) / sliceSamples);
-arrayOfSlices = zeros(sliceSamples, numSlices);
-
-startIndex = 1;
-endIndex = sliceSamples;
-samplesConsumed = 0;
-i = 1;
-
-fadeTime = 0.001;
-fadeSamples = floor(fadeTime * fs);
-fadeVal = 0;
-fadeIncr = 1/(fadeSamples);
-
-% loop through input file and put into slices
-while samplesConsumed < length(inFile)
-
-    localSlice = inFile(startIndex:endIndex);
-
-    % apply a fade in and out to the captured slice
-    for k=1:fadeSamples
-        localSlice(k) = localSlice(k) * fadeVal;
-        localSlice(end-fadeSamples+k) = localSlice(end-fadeSamples+k)*(1-fadeVal);
-        fadeVal = fadeVal + fadeIncr;
-    end
-    % fade is done for this slice, reset fade val
+if (mono)
+    fprintf(['Processing mono file', '\n']);
+    outFile = zeros(length(inFile),1);
+    numSlices = floor((length(inFile) - sliceSamplesInt) / sliceSamples) + 1;
+    arrayOfSlices = zeros(sliceSamplesInt, numSlices);
+    
+    startIndex = 1.0;
+    i = 1;
+    
+    fadeTime = 0.001;
+    fadeSamples = floor(fadeTime * fs);
+    fadeSamples = min(fadeSamples, floor(sliceSamplesInt/2));
     fadeVal = 0;
+    fadeIncr = 1/(fadeSamples);
+    
+    % loop through input file and put into slices
+    while (startIndex + sliceSamplesInt - 1) <= length(inFile)
 
-    % place the slice into our data array
-    arrayOfSlices(:, i) = localSlice;
+        % the slice of samples we need to interpolate from out inFile
+        t = startIndex + (0:sliceSamplesInt-1);
+    
+        % retrieve the interpolated slice
+        localSlice = interp1(1:length(inFile), inFile, t, 'linear', 0);
+    
+        % apply fade to slice
+        for k = 1:fadeSamples
+            localSlice(k) = localSlice(k) * fadeVal;
+            localSlice(end-fadeSamples+k) = ...
+                localSlice(end-fadeSamples+k) * (1 - fadeVal);
+            fadeVal = fadeVal + fadeIncr;
+        end
+        fadeVal = 0;
+    
+        % store slice
+        arrayOfSlices(:, i) = localSlice(:);
+    
+        % advance position with fractional samples
+        startIndex = startIndex + sliceSamples;
+        i = i + 1;
 
-    % increment positional values
-    startIndex = startIndex + sliceSamples;
-    endIndex = endIndex + sliceSamples;
-    samplesConsumed = samplesConsumed + sliceSamples;
-    i = i + 1;
+    end
+    
+    % create numSlices random numbers with no repeats
+    randNums = randperm(numSlices);
+    
+    i = 1;
+    for k=1:length(randNums)
+        % use the random numbers to pick slices from our data
+        outFile(i:i+sliceSamplesInt-1) = arrayOfSlices(:, randNums(k));
+        % increment our position in the output file
+        i = i + sliceSamplesInt;
+    end
+elseif (stereo)
 
-    % when we have data left that is not a full slice just end 
-    if (endIndex >= length(inFile))
-        break
-    end    
+    fprintf(['Processing stereo file', '\n']);
+
+    outFileL = zeros(length(inFile(:,1)), 1);
+    outFileR = zeros(length(inFile(:,2)), 1);
+    
+    numSlices = floor((length(inFile(:,1)) - sliceSamplesInt) / sliceSamples) + 1;
+    
+    arrayOfSlicesL = zeros(sliceSamplesInt, numSlices);
+    arrayOfSlicesR = zeros(sliceSamplesInt, numSlices);
+    
+    startIndex = 1.0;
+    i = 1;
+    
+    fadeTime = 0.001;
+    fadeSamples = floor(fadeTime * fs);
+    fadeSamples = min(fadeSamples, floor(sliceSamples/2));
+    fadeVal = 0;
+    fadeIncr = 1 / fadeSamples;
+    
+    N = length(inFile(:,1));
+    
+    % loop through input file and put into slices
+    while (startIndex + sliceSamplesInt - 1) <= N
+    
+        % the slice of samples we need to interpolate from out inFile
+        t = startIndex + (0:sliceSamplesInt-1);
+
+        % retrieve the interpolated slices
+        localSliceL = interp1(1:N, inFile(:,1), t, 'linear', 0);
+        localSliceR = interp1(1:N, inFile(:,2), t, 'linear', 0);
+    
+        % apply fades
+        for k = 1:fadeSamples
+            localSliceL(k) = localSliceL(k) * fadeVal;
+            localSliceR(k) = localSliceR(k) * fadeVal;
+    
+            localSliceL(end-fadeSamples+k) = ...
+                localSliceL(end-fadeSamples+k) * (1 - fadeVal);
+            localSliceR(end-fadeSamples+k) = ...
+                localSliceR(end-fadeSamples+k) * (1 - fadeVal);
+    
+            fadeVal = fadeVal + fadeIncr;
+        end
+        fadeVal = 0;
+    
+        % store slices
+        arrayOfSlicesL(:, i) = localSliceL(:);
+        arrayOfSlicesR(:, i) = localSliceR(:);
+    
+        % advance position with fractional samples
+        startIndex = startIndex + sliceSamples;
+        i = i + 1;
+    
+    end
+    
+    % randomize slice order
+    randNums = randperm(numSlices);
+    
+    i = 1;
+    for k = 1:length(randNums)
+    
+        outFileL(i:i+sliceSamplesInt-1) = arrayOfSlicesL(:, randNums(k));
+        outFileR(i:i+sliceSamplesInt-1) = arrayOfSlicesR(:, randNums(k));
+    
+        i = i + sliceSamplesInt;
+    end
+    
+    outFile(:,1) = outFileL;
+    outFile(:,2) = outFileR;
+
+else
+    fprintf(['Unsupported number of channels!', '\n']);
 end
 
-% create numSlices random numbers with no repeats
-randNums = randperm(numSlices, numSlices);
+fprintf(['Processing done', '\n']);
+toc
 
-i = 1;
-for k=1:length(randNums)
-    % use the random numbers to pick slices from our data
-    outFile(i:i+sliceSamples-1) = arrayOfSlices(:, randNums(k));
-    % increment our position in the output file
-    i = i + sliceSamples;
-end
 end
