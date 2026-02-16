@@ -44,7 +44,6 @@ switch sliceSize
 end
 
 
-
 if (numChannels == 1)
     fprintf(['Processing mono file', '\n']);
 

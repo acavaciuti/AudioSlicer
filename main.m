@@ -3,7 +3,7 @@ close all
 
 [inFile, fs] = audioread("input.wav");
 
-BPM = 120;
+BPM = 130;
 % For sliceSize:
 % 0 = 1/32 note
 % 1 = 1/16 note
@@ -13,6 +13,7 @@ BPM = 120;
 % 5 = 1 bar
 % 6 = 2 bars
 sliceSize = 3;
+
 
 [output] = audioSlicer(inFile, fs, BPM, sliceSize);
 
