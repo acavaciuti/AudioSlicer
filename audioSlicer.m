@@ -16,19 +16,9 @@ function [outFile] = audioSlicer(inFile, fs, BPM, sliceSize)
 %   outFile: Spliced audio signal
 tic
 
-mono = 0;
-stereo = 0;
-
-if (size(inFile, 2) == 1)
-    mono = 1;
-    stereo = 0;
-
-elseif (size(inFile, 2) == 2)
-    mono = 0;
-    stereo = 1;
-else
-    mono = 0;
-    stereo = 0;
+[numSamples, numChannels] = size(inFile); 
+if numChannels ~= 1 && numChannels ~= 2 
+    error('Unsupported number of channels!'); 
 end
 
 
@@ -53,31 +43,42 @@ switch sliceSize
         sliceSamples = fs * (60 / BPM);
 end
 
-sliceSamplesInt = round(sliceSamples);
 
-if (mono)
+
+if (numChannels == 1)
     fprintf(['Processing mono file', '\n']);
+
+    % output data
     outFile = zeros(length(inFile),1);
-    numSlices = floor((length(inFile) - sliceSamplesInt) / sliceSamples) + 1;
-    arrayOfSlices = zeros(sliceSamplesInt, numSlices);
+
+    % slice boundaries
+    sliceStarts = 1 : sliceSamples : numSamples;
+    numSlices = length(sliceStarts);
+    slices = cell(numSlices, 1);
     
     startIndex = 1.0;
-    i = 1;
     
+    % fade setup
     fadeTime = 0.001;
     fadeSamples = floor(fadeTime * fs);
-    fadeSamples = min(fadeSamples, floor(sliceSamplesInt/2));
     fadeVal = 0;
     fadeIncr = 1/(fadeSamples);
     
-    % loop through input file and put into slices
-    while (startIndex + sliceSamplesInt - 1) <= length(inFile)
+    % slice extraction
+    for i = 1:numSlices
 
-        % the slice of samples we need to interpolate from out inFile
-        t = startIndex + (0:sliceSamplesInt-1);
-    
+        startIndex = sliceStarts(i);
+        endIndex   = startIndex + sliceSamples;
+
+        if endIndex > numSamples + 1
+            break;
+        end
+
+        % Build time vector covering [start, end)
+        t = startIndex : 1 : (endIndex - 1);
+
         % retrieve the interpolated slice
-        localSlice = interp1(1:length(inFile), inFile, t, 'linear', 0);
+        localSlice = interp1(1:numSamples, inFile, t, 'linear', 0);
     
         % apply fade to slice
         for k = 1:fadeSamples
@@ -89,11 +90,7 @@ if (mono)
         fadeVal = 0;
     
         % store slice
-        arrayOfSlices(:, i) = localSlice(:);
-    
-        % advance position with fractional samples
-        startIndex = startIndex + sliceSamples;
-        i = i + 1;
+        slices{i} = localSlice;
 
     end
     
@@ -102,80 +99,87 @@ if (mono)
     
     i = 1;
     for k=1:length(randNums)
-        % use the random numbers to pick slices from our data
-        outFile(i:i+sliceSamplesInt-1) = arrayOfSlices(:, randNums(k));
-        % increment our position in the output file
-        i = i + sliceSamplesInt;
+        currentSlice = slices{randNums(k)};
+        L = length(currentSlice);
+        outFile(i:i+L-1) = currentSlice;
+ 
+        i = i + L;  
     end
-elseif (stereo)
+elseif (numChannels == 2)
 
     fprintf(['Processing stereo file', '\n']);
 
-    outFileL = zeros(length(inFile(:,1)), 1);
-    outFileR = zeros(length(inFile(:,2)), 1);
-    
-    numSlices = floor((length(inFile(:,1)) - sliceSamplesInt) / sliceSamples) + 1;
-    
-    arrayOfSlicesL = zeros(sliceSamplesInt, numSlices);
-    arrayOfSlicesR = zeros(sliceSamplesInt, numSlices);
+    % output data
+    outFileL = zeros(length(inFile),1);
+    outFileR = zeros(length(inFile),1);
+
+    % slice boundaries
+    sliceStarts = 1 : sliceSamples : numSamples;
+    numSlices = length(sliceStarts);
+    slicesL = cell(numSlices, 1);
+    slicesR = cell(numSlices, 1);
     
     startIndex = 1.0;
-    i = 1;
     
+    % fade setup
     fadeTime = 0.001;
     fadeSamples = floor(fadeTime * fs);
-    fadeSamples = min(fadeSamples, floor(sliceSamples/2));
     fadeVal = 0;
-    fadeIncr = 1 / fadeSamples;
+    fadeIncr = 1/(fadeSamples);
     
-    N = length(inFile(:,1));
-    
-    % loop through input file and put into slices
-    while (startIndex + sliceSamplesInt - 1) <= N
-    
-        % the slice of samples we need to interpolate from out inFile
-        t = startIndex + (0:sliceSamplesInt-1);
+    % slice extraction
+    for i = 1:numSlices
 
-        % retrieve the interpolated slices
-        localSliceL = interp1(1:N, inFile(:,1), t, 'linear', 0);
-        localSliceR = interp1(1:N, inFile(:,2), t, 'linear', 0);
+        startIndex = sliceStarts(i);
+        endIndex   = startIndex + sliceSamples;
+
+        if endIndex > numSamples + 1
+            break;
+        end
+
+        % Build time vector covering [start, end)
+        t = startIndex : 1 : (endIndex - 1);
+
+        % retrieve the interpolated slice
+        localSliceL = interp1(1:numSamples, inFile(:,1), t, 'linear', 0);
+        localSliceR = interp1(1:numSamples, inFile(:,2), t, 'linear', 0);
     
-        % apply fades
+        % apply fade to slice
         for k = 1:fadeSamples
             localSliceL(k) = localSliceL(k) * fadeVal;
-            localSliceR(k) = localSliceR(k) * fadeVal;
-    
             localSliceL(end-fadeSamples+k) = ...
                 localSliceL(end-fadeSamples+k) * (1 - fadeVal);
+
+            localSliceR(k) = localSliceR(k) * fadeVal;
             localSliceR(end-fadeSamples+k) = ...
                 localSliceR(end-fadeSamples+k) * (1 - fadeVal);
-    
+
             fadeVal = fadeVal + fadeIncr;
         end
         fadeVal = 0;
     
-        % store slices
-        arrayOfSlicesL(:, i) = localSliceL(:);
-        arrayOfSlicesR(:, i) = localSliceR(:);
-    
-        % advance position with fractional samples
-        startIndex = startIndex + sliceSamples;
-        i = i + 1;
-    
+        % store slice
+        slicesL{i} = localSliceL;
+        slicesR{i} = localSliceR;
+
+
     end
     
-    % randomize slice order
+    % create numSlices random numbers with no repeats
     randNums = randperm(numSlices);
     
     i = 1;
-    for k = 1:length(randNums)
-    
-        outFileL(i:i+sliceSamplesInt-1) = arrayOfSlicesL(:, randNums(k));
-        outFileR(i:i+sliceSamplesInt-1) = arrayOfSlicesR(:, randNums(k));
-    
-        i = i + sliceSamplesInt;
+    for k=1:length(randNums)
+        currentSliceL = slicesL{randNums(k)};
+        currentSliceR = slicesR{randNums(k)};
+        L = length(currentSliceL);
+
+        outFileL(i:i+L-1) = currentSliceL;
+        outFileR(i:i+L-1) = currentSliceR;
+ 
+        i = i + L;  
     end
-    
+
     outFile(:,1) = outFileL;
     outFile(:,2) = outFileR;
 
