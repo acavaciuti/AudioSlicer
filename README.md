@@ -1,5 +1,6 @@
 # AudioSlicer
-The audio slicer function takes an input .wav file of either mono or stereo channels, and splices it into slice sizes of your choosing, quantized to BPM. Then, the function uses randperm to put these slices into a random order. It then writes this to an output audio file. Use the main.m to run the audio slicer function; comments in main.m should be self explanitory for the audio slicer's arguments.
+A blog post about the audio slicer, which describes it in detail, is available here: https://beacons.substack.com/p/audio-slicer
+The audio slicer function takes an input .wav file of either mono or stereo channels, and splices it into slice sizes of your choosing based on BPM. Then the function uses randperm to put these slices into a random order. It then writes this to an output audio file. Use the main.m to run the audio slicer function; comments in main.m should make clear the audio slicer's input arguments.
 
 ## Future Improvements / Features
 There are a lot of things that could be done to improve the audio slicer:
